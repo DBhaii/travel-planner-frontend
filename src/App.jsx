@@ -7,9 +7,12 @@ import GeneratedPlan from './components/GeneratedPlan';
 import Login from './components/Login';
 import Register from './components/Register';
 
+// Define the base URL for your API
+const API_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+
 function App() {
   const [token, setToken] = useState(localStorage.getItem('token'));
-  const [view, setView] = useState('register'); // Default to register for new users
+  const [view, setView] = useState('register');
 
   const [searchType, setSearchType] = useState('flights');
   const [flights, setFlights] = useState([]);
@@ -19,12 +22,10 @@ function App() {
   const [error, setError] = useState('');
   const [itinerary, setItinerary] = useState('');
 
-  // Flight form state
   const [origin, setOrigin] = useState('');
   const [destination, setDestination] = useState('');
   const [departureDate, setDepartureDate] = useState('');
 
-  // Hotel form state
   const [cityCode, setCityCode] = useState('');
   const [checkInDate, setCheckInDate] = useState('');
   const [checkOutDate, setCheckOutDate] = useState('');
@@ -32,14 +33,13 @@ function App() {
   const handleRegister = async (username, password) => {
     setError('');
     try {
-      const response = await fetch('http://localhost:5000/api/register', {
+      const response = await fetch(`${API_URL}/api/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.message);
-      // Automatically log in after successful registration
       alert('Registration successful! Please log in.');
       setView('login');
     } catch (err) {
@@ -50,14 +50,13 @@ function App() {
   const handleLogin = async (username, password) => {
     setError('');
     try {
-      const response = await fetch('http://localhost:5000/api/login', {
+      const response = await fetch(`${API_URL}/api/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || 'Login failed');
-      
       localStorage.setItem('token', data.token);
       setToken(data.token);
     } catch (err) {
@@ -81,7 +80,7 @@ function App() {
     const fetchTrip = async () => {
       if (!token) return;
       try {
-        const response = await fetch('http://localhost:5000/api/trip', { headers: getAuthHeaders() });
+        const response = await fetch(`${API_URL}/api/trip`, { headers: getAuthHeaders() });
         const data = await response.json();
         setMyTrip(data.tripData || []);
       } catch (e) {
@@ -93,18 +92,17 @@ function App() {
 
   useEffect(() => {
     const saveTrip = async () => {
-      await fetch('http://localhost:5000/api/trip', {
+      await fetch(`${API_URL}/api/trip`, {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify({ tripData: myTrip }),
       });
     };
-    // Only save if there's a token and a trip to save
     if (token && myTrip) {
       saveTrip();
     }
   }, [myTrip, token]);
-  
+
   const addToTrip = (item) => {
     const itemType = searchType === 'flights' ? 'Flight' : 'Hotel';
     setMyTrip([...myTrip, { ...item, type: itemType }]);
@@ -113,9 +111,43 @@ function App() {
   const removeFromTrip = (indexToRemove) => {
     setMyTrip(myTrip.filter((_, index) => index !== indexToRemove));
   };
-  
+
   const handleSearch = async () => {
-    // ... (This function is complete and correct from the previous step)
+    const isFlights = searchType === 'flights';
+    let endpoint = isFlights ? 'search-flights' : 'search-hotels';
+    let params;
+
+    if (isFlights) {
+      if (!origin || !destination || !departureDate) {
+        setError("Please fill in all flight search fields.");
+        setLoading(false);
+        return;
+      }
+      params = new URLSearchParams({ origin, destination, departureDate });
+    } else {
+      if (!cityCode || !checkInDate || !checkOutDate) {
+        setError("Please fill in all hotel search fields.");
+        setLoading(false);
+        return;
+      }
+      params = new URLSearchParams({ cityCode, checkInDate, checkOutDate });
+    }
+    
+    setLoading(true);
+    setError('');
+    isFlights ? setFlights([]) : setHotels([]);
+    
+    try {
+      const response = await fetch(`${API_URL}/api/${endpoint}?${params}`);
+      if (!response.ok) { throw new Error(`Error: ${response.statusText}`); }
+      const data = await response.json();
+      if (data.error) { throw new Error(JSON.stringify(data.details || data.error)); }
+      isFlights ? setFlights(data.data || []) : setHotels(data.data || []);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
   };
   
   const handleGenerateItinerary = async () => {
@@ -127,10 +159,9 @@ function App() {
     setError('');
     setItinerary('');
     try {
-      const response = await fetch('http://localhost:5000/api/generate-itinerary', {
+      const response = await fetch(`${API_URL}/api/generate-itinerary`, {
         method: 'POST',
-        // THIS WAS THE MISSING PART - corrected now
-        headers: getAuthHeaders(), 
+        headers: getAuthHeaders(),
         body: JSON.stringify({ tripData: myTrip }),
       });
       const data = await response.json();
@@ -147,11 +178,10 @@ function App() {
     return (
       <div className="App App-header">
         {view === 'login' ? (
-          <Login onLogin={handleLogin} onSwitchToRegister={() => setView('register')} />
+          <Login onLogin={handleLogin} onSwitchToRegister={() => setView('register')} error={error}/>
         ) : (
-          <Register onRegister={handleRegister} onSwitchToLogin={() => setView('login')} />
+          <Register onRegister={handleRegister} onSwitchToLogin={() => setView('login')} error={error}/>
         )}
-        {error && <p className="error">{error}</p>}
       </div>
     );
   }
