@@ -1,15 +1,4 @@
-// src/components/Login.jsx
 import { useState } from 'react';
-import {
-  Box,
-  Button,
-  FormControl,
-  FormLabel,
-  Input,
-  VStack,
-  Heading,
-  Text,
-} from '@chakra-ui/react';
 
 export default function Login({ onLogin, onSwitchToRegister, error }) {
   const [username, setUsername] = useState('');
@@ -21,41 +10,37 @@ export default function Login({ onLogin, onSwitchToRegister, error }) {
   };
 
   return (
-    <Box width="350px" p={8} borderWidth={1} borderRadius={8} boxShadow="lg">
-      <VStack spacing={4}>
-        <Heading>Login</Heading>
-        {error && <Text color="red.500">{error}</Text>}
-        
-        <form onSubmit={handleSubmit} style={{ width: '100%' }}>
-          <VStack spacing={4}>
-            <FormControl isRequired>
-              <FormLabel>Username</FormLabel>
-              <Input
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder="Enter your username"
-              />
-            </FormControl>
-            <FormControl isRequired>
-              <FormLabel>Password</FormLabel>
-              <Input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Enter your password"
-              />
-            </FormControl>
-            <Button type="submit" colorScheme="teal" width="full">
-              Login
-            </Button>
-          </VStack>
-        </form>
-        
-        <Button onClick={onSwitchToRegister} variant="link" colorScheme="teal">
-          Don't have an account? Register
-        </Button>
-      </VStack>
-    </Box>
+    <div className="w-full max-w-md p-8 space-y-6 bg-white rounded-2xl shadow-lg">
+      <h2 className="text-3xl font-bold text-center text-slate-800">Sign In</h2>
+      {error && <p className="text-sm text-center text-red-500">{error}</p>}
+      <form onSubmit={handleSubmit} className="space-y-6">
+        <div>
+          <label className="text-sm font-medium text-slate-700">Username</label>
+          <input
+            type="text"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            className="w-full px-4 py-3 mt-1 text-slate-800 bg-slate-100 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            required
+          />
+        </div>
+        <div>
+          <label className="text-sm font-medium text-slate-700">Password</label>
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="w-full px-4 py-3 mt-1 text-slate-800 bg-slate-100 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            required
+          />
+        </div>
+        <button type="submit" className="w-full py-3 font-semibold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700">
+          Login
+        </button>
+      </form>
+      <button onClick={onSwitchToRegister} className="w-full text-sm text-indigo-600 hover:underline">
+        Don't have an account? Register
+      </button>
+    </div>
   );
 }

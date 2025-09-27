@@ -1,18 +1,20 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { LoaderCircle, BedDouble, Plane, Palmtree, Wand2 } from "lucide-react";
 import { Tabs, TabList, TabPanels, Tab, TabPanel } from "@chakra-ui/react";
 
-const API_URL = 'http://localhost:5000';
+// This component receives the auth token and logout function as props
+export default function HomePage({ token, handleLogout }) {
+  const API_URL = 'http://localhost:5000';
 
-export default function HomePage() {
+  // All component state is managed here
   const [activeSearch, setActiveSearch] = useState('flights');
   const [query, setQuery] = useState({
     origin: '', destination: '', departureDate: '',
     cityCode: '', checkInDate: '', checkOutDate: '',
     activityKeyword: '',
   });
-  
+
   const [flights, setFlights] = useState([]);
   const [hotels, setHotels] = useState([]);
   const [activities, setActivities] = useState([]);
@@ -23,6 +25,42 @@ export default function HomePage() {
   const [error, setError] = useState("");
   const [resultsOpen, setResultsOpen] = useState(false);
   const [destinationCity, setDestinationCity] = useState("");
+
+  // Helper to create authenticated headers for API calls
+  const getAuthHeaders = () => ({
+    'Content-Type': 'application/json',
+    'x-access-token': token,
+  });
+
+  // Load the user's saved trip from the database when the page loads
+  useEffect(() => {
+    const fetchTrip = async () => {
+      if (!token) return;
+      try {
+        const response = await fetch(`${API_URL}/api/trip`, { headers: getAuthHeaders() });
+        const data = await response.json();
+        setMyTrip(data.tripData || []);
+      } catch (e) {
+        setError("Could not load saved trip.");
+      }
+    };
+    fetchTrip();
+  }, [token]);
+
+  // Save the trip to the database whenever it changes
+  useEffect(() => {
+    const saveTrip = async () => {
+      // Avoid saving an empty trip if the initial load is empty
+      if (myTrip === null || myTrip === undefined) return;
+      await fetch(`${API_URL}/api/trip`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ tripData: myTrip }),
+      });
+    };
+    saveTrip();
+  }, [myTrip, token]);
+
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -47,42 +85,32 @@ export default function HomePage() {
 
     if (activeSearch === 'flights') {
       endpoint = '/api/search-flights';
-      params = new URLSearchParams({
-        origin: query.origin,
-        destination: query.destination,
-        departureDate: query.departureDate,
-      });
+      params = new URLSearchParams({ origin: query.origin, destination: query.destination, departureDate: query.departureDate });
     } else if (activeSearch === 'hotels') {
       endpoint = '/api/search-hotels';
-      params = new URLSearchParams({
-        cityCode: query.cityCode,
-        checkInDate: query.checkInDate,
-        checkOutDate: query.checkOutDate,
-      });
+      params = new URLSearchParams({ cityCode: query.cityCode, checkInDate: query.checkInDate, checkOutDate: query.checkOutDate });
     } else if (activeSearch === 'activities') {
       endpoint = '/api/search-activities';
       params = new URLSearchParams({ keyword: query.activityKeyword });
     }
 
     try {
-      const response = await fetch(`${API_URL}${endpoint}?${params}`);
+      const response = await fetch(`${API_URL}${endpoint}?${params}`); // Search APIs can be public
       const data = await response.json();
       if (!response.ok) {
         throw new Error(JSON.stringify(data.details || data.error));
       }
-      
       if (activeSearch === 'flights') setFlights(data.data || []);
       else if (activeSearch === 'hotels') setHotels(data.data || []);
       else if (activeSearch === 'activities') setActivities(data.data || []);
-
     } catch (err) {
       console.error(err);
-      setError(`Failed to fetch ${activeSearch}. Check search parameters or try again later.`);
+      setError(`Failed to fetch ${activeSearch}. Check parameters or try again later.`);
     } finally {
       setLoading(false);
     }
   };
-  
+
   const addToTrip = (item, type) => {
     setMyTrip([...myTrip, { ...item, type }]);
   };
@@ -90,7 +118,7 @@ export default function HomePage() {
   const removeFromTrip = (indexToRemove) => {
     setMyTrip(myTrip.filter((_, index) => index !== indexToRemove));
   };
-  
+
   const handleGenerateItinerary = async () => {
     if (myTrip.length === 0) return;
     setLoading(true);
@@ -99,7 +127,7 @@ export default function HomePage() {
     try {
       const response = await fetch(`${API_URL}/api/generate-itinerary`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ tripData: myTrip }),
       });
       const data = await response.json();
@@ -123,27 +151,19 @@ export default function HomePage() {
               <p className="text-xs text-slate-500">Flights · Hotels · Activities · Local tips</p>
             </div>
           </div>
+          <button onClick={handleLogout} className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">Logout</button>
         </div>
       </header>
       <main className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8 mt-6">
         <section className="lg:col-span-1 bg-white p-6 rounded-2xl shadow-lg sticky top-6 h-fit">
           <div className="flex border-b mb-4">
-            <button
-              onClick={() => setActiveSearch('flights')}
-              className={`flex-1 py-2 font-semibold flex items-center justify-center gap-2 ${activeSearch === 'flights' ? 'border-b-2 border-indigo-600 text-indigo-600' : 'text-slate-500'}`}
-            >
+            <button onClick={() => setActiveSearch('flights')} className={`flex-1 py-2 font-semibold flex items-center justify-center gap-2 ${activeSearch === 'flights' ? 'border-b-2 border-indigo-600 text-indigo-600' : 'text-slate-500'}`}>
               <Plane size={16} /> Flights
             </button>
-            <button
-              onClick={() => setActiveSearch('hotels')}
-              className={`flex-1 py-2 font-semibold flex items-center justify-center gap-2 ${activeSearch === 'hotels' ? 'border-b-2 border-indigo-600 text-indigo-600' : 'text-slate-500'}`}
-            >
+            <button onClick={() => setActiveSearch('hotels')} className={`flex-1 py-2 font-semibold flex items-center justify-center gap-2 ${activeSearch === 'hotels' ? 'border-b-2 border-indigo-600 text-indigo-600' : 'text-slate-500'}`}>
               <BedDouble size={16} /> Hotels
             </button>
-            <button
-              onClick={() => setActiveSearch('activities')}
-              className={`flex-1 py-2 font-semibold flex items-center justify-center gap-2 ${activeSearch === 'activities' ? 'border-b-2 border-indigo-600 text-indigo-600' : 'text-slate-500'}`}
-            >
+            <button onClick={() => setActiveSearch('activities')} className={`flex-1 py-2 font-semibold flex items-center justify-center gap-2 ${activeSearch === 'activities' ? 'border-b-2 border-indigo-600 text-indigo-600' : 'text-slate-500'}`}>
               <Palmtree size={16} /> Activities
             </button>
           </div>
@@ -163,12 +183,10 @@ export default function HomePage() {
               </>
             )}
             {activeSearch === 'activities' && (
-              <>
-                <label className="block">
-                  <span className="text-sm font-medium text-slate-700">Search by city</span>
-                  <input name="activityKeyword" value={query.activityKeyword} onChange={handleInputChange} className="w-full rounded-lg border p-3 mt-1" placeholder="e.g., Rome" required />
-                </label>
-              </>
+              <label className="block">
+                <span className="text-sm font-medium text-slate-700">Search by city</span>
+                <input name="activityKeyword" value={query.activityKeyword} onChange={handleInputChange} className="w-full rounded-lg border p-3 mt-1" placeholder="e.g., Rome" required />
+              </label>
             )}
             <button type="submit" disabled={loading} className="w-full py-3 rounded-xl bg-indigo-600 text-white font-semibold shadow-lg hover:bg-indigo-700 flex items-center justify-center disabled:bg-indigo-400">
               {loading ? <LoaderCircle className="animate-spin" /> : `Search ${activeSearch.charAt(0).toUpperCase() + activeSearch.slice(1)}`}
@@ -195,53 +213,58 @@ export default function HomePage() {
                       {loading && activeSearch === 'flights' && <div className="flex justify-center items-center py-12"><LoaderCircle size={32} className="animate-spin text-indigo-600" /></div>}
                       {error && activeSearch === 'flights' && <p className="text-red-500 text-center">{error}</p>}
                       {!loading && !error && flights.length === 0 && <p className="text-slate-500 text-center py-12">No flights found.</p>}
-                      {flights.length > 0 && flights.map((flight) => (
-                        <motion.div key={flight.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="p-4 border rounded-xl flex items-center justify-between">
-                           <div>
-                            <div className="font-semibold">{flight.itineraries[0].segments.map(seg => seg.carrierCode + ' ' + seg.aircraft.code).join(' → ')}</div>
-                            <div className="text-xs text-slate-500">Duration: {flight.itineraries[0].duration.replace('PT','').replace('H','h ').replace('M','m')}</div>
-                          </div>
-                          <div className="text-right">
-                             <div className="font-bold text-lg text-indigo-600">€{flight.price.total}</div>
-                           </div>
-                           <button onClick={() => addToTrip(flight, 'Flight')} className="ml-4 px-3 py-1 bg-indigo-100 text-indigo-700 text-sm rounded-md hover:bg-indigo-200">Add</button>
-                        </motion.div>
-                      ))}
+                      <div className="space-y-4">
+                        {flights.map((flight) => (
+                          <motion.div key={flight.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="p-4 border rounded-xl flex items-center justify-between">
+                             <div>
+                              <div className="font-semibold">{flight.itineraries[0].segments.map(seg => seg.carrierCode + ' ' + seg.aircraft.code).join(' → ')}</div>
+                              <div className="text-xs text-slate-500">Duration: {flight.itineraries[0].duration.replace('PT','').replace('H','h ').replace('M','m')}</div>
+                            </div>
+                            <div className="text-right">
+                               <div className="font-bold text-lg text-indigo-600">€{flight.price.total}</div>
+                             </div>
+                             <button onClick={() => addToTrip(flight, 'Flight')} className="ml-4 px-3 py-1 bg-indigo-100 text-indigo-700 text-sm rounded-md hover:bg-indigo-200">Add</button>
+                          </motion.div>
+                        ))}
+                      </div>
                     </TabPanel>
                     <TabPanel>
                       {loading && activeSearch === 'hotels' && <div className="flex justify-center items-center py-12"><LoaderCircle size={32} className="animate-spin text-indigo-600" /></div>}
                       {error && activeSearch === 'hotels' && <p className="text-red-500 text-center">{error}</p>}
                       {!loading && !error && hotels.length === 0 && <p className="text-slate-500 text-center py-12">No hotels found.</p>}
-                      {hotels.length > 0 && hotels.map((hotel) => (
-                        <motion.div key={hotel.hotelId} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="p-4 border rounded-xl flex items-center justify-between">
-                          <div>
-                            <h3 className="font-semibold">{hotel.name}</h3>
-                            <p className="text-sm text-slate-600">Chain: {hotel.chainCode} | Rating: {hotel.rating} stars</p>
-                          </div>
-                          <button onClick={() => addToTrip(hotel, 'Hotel')} className="ml-4 px-3 py-1 bg-indigo-100 text-indigo-700 text-sm rounded-md hover:bg-indigo-200">Add</button>
-                        </motion.div>
-                      ))}
+                      <div className="space-y-4">
+                        {hotels.map((hotel) => (
+                          <motion.div key={hotel.hotelId} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="p-4 border rounded-xl flex items-center justify-between">
+                            <div>
+                              <h3 className="font-semibold">{hotel.name}</h3>
+                              <p className="text-sm text-slate-600">Chain: {hotel.chainCode} | Rating: {hotel.rating} stars</p>
+                            </div>
+                            <button onClick={() => addToTrip(hotel, 'Hotel')} className="ml-4 px-3 py-1 bg-indigo-100 text-indigo-700 text-sm rounded-md hover:bg-indigo-200">Add</button>
+                          </motion.div>
+                        ))}
+                      </div>
                     </TabPanel>
                     <TabPanel>
                        {loading && activeSearch === 'activities' && <div className="flex justify-center items-center py-12"><LoaderCircle size={32} className="animate-spin text-indigo-600" /></div>}
                        {error && activeSearch === 'activities' && <p className="text-red-500 text-center">{error}</p>}
                        {!loading && !error && activities.length === 0 && <p className="text-slate-500 text-center py-12">No activities found.</p>}
-                       {activities.length > 0 && activities.map((activity) => (
-                        <motion.div key={activity.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="p-4 border rounded-xl flex items-center justify-between">
-                          <div>
-                            <h3 className="font-semibold">{activity.name}</h3>
-                            <p className="text-sm text-slate-600">Category: {activity.subType}</p>
-                          </div>
-                           <button onClick={() => addToTrip(activity, 'Activity')} className="ml-4 px-3 py-1 bg-indigo-100 text-indigo-700 text-sm rounded-md hover:bg-indigo-200">Add</button>
-                        </motion.div>
-                      ))}
+                       <div className="space-y-4">
+                        {activities.map((activity) => (
+                          <motion.div key={activity.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="p-4 border rounded-xl flex items-center justify-between">
+                            <div>
+                              <h3 className="font-semibold">{activity.name}</h3>
+                              <p className="text-sm text-slate-600">Category: {activity.subType}</p>
+                            </div>
+                             <button onClick={() => addToTrip(activity, 'Activity')} className="ml-4 px-3 py-1 bg-indigo-100 text-indigo-700 text-sm rounded-md hover:bg-indigo-200">Add</button>
+                          </motion.div>
+                        ))}
+                      </div>
                     </TabPanel>
                   </TabPanels>
                 </Tabs>
               )}
             </div>
           </section>
-
           <section>
             <div className="bg-white p-6 rounded-2xl shadow-lg">
               <h2 className="text-lg font-semibold mb-4">My Trip Itinerary</h2>
